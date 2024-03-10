@@ -1,0 +1,52 @@
+name: Versioning
+
+on:
+  push:
+    branches: [main]
+
+env:
+  NX_BRANCH: ${GITHUB_REF##*/}
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Use Go 1.19
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.19
+
+      - name: 📦 Login into Docker
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🪐 Minor version for each merge
+        id: taggerDryRun
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: minor
+          PRE_RELEASE: true
+
+      - name: 🪐 Output Tag
+        run: |
+          echo "${{ steps.taggerDryRun.outputs.new_tag }}"
+
+      - name: 🏗 Build Docker Images
+        run: docker build -f Dockerfile . -t toxictoast/azkaban-ocr:${{ steps.taggerDryRun.outputs.new_tag }}
+
+      - name: 🏗 Push Docker Images
+        run: docker push toxictoast/azkaban-ocr:${{ steps.taggerDryRun.outputs.new_tag }}
+
+      - name: API Alerts Notify
+        uses: apialerts/notify-action@v1
+        with:
+          api_key: ${{ secrets.API_ALERTS_KEY }}
+          message: '🚢 New Azkaban - OCR Version'
+          tags: 'Azkaban,OCR'
+          link: 'https://api.toxictoast.de/swagger'
