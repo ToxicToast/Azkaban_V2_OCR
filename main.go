@@ -70,12 +70,12 @@ func main() {
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"inventory_receipe_queue", // name
-		true,                      // durable
-		false,                     // delete when unused
-		false,                     // exclusive
-		false,                     // no-wait
-		nil,                       // arguments
+		"azkaban_ocr_queue", // name
+		true,                // durable
+		false,               // delete when unused
+		false,               // exclusive
+		false,               // no-wait
+		nil,                 // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 
@@ -97,25 +97,29 @@ func main() {
 			var mqttResponse MqttResponse
 			err := json.Unmarshal(d.Body, &mqttResponse)
 			failOnError(err, "Failed to unmarshal json")
-			byteData, err := base64.StdEncoding.DecodeString(mqttResponse.Data)
-			failOnError(err, "Failed to decode base64 to bytedata")
-			text := processImage(byteData)
-			//
-			topicName := q.Name + "_ack"
-			responseData := transformResponse(mqttResponse.ID, text)
-			err = ch.Publish(
-				"",        // Exchange
-				topicName, // Routing key (Queue name)
-				false,     // Mandatory
-				false,     // Immediate
-				amqp.Publishing{ // Message
-					CorrelationId: mqttResponse.ID,
-					MessageId:     mqttResponse.ID,
-					ContentType:   "application/json",
-					Body:          responseData,
-				})
-			failOnError(err, "Failed to publish response")
-			log.Println("Received Text:", text)
+			if mqttResponse.Pattern == "azkaban.upload.ocr" {
+				byteData, err := base64.StdEncoding.DecodeString(mqttResponse.Data)
+				failOnError(err, "Failed to decode base64 to bytedata")
+				text := processImage(byteData)
+				//
+				topicName := q.Name + "_ack"
+				responseData := transformResponse(mqttResponse.ID, text)
+				err = ch.Publish(
+					"",        // Exchange
+					topicName, // Routing key (Queue name)
+					false,     // Mandatory
+					false,     // Immediate
+					amqp.Publishing{ // Message
+						CorrelationId: mqttResponse.ID,
+						MessageId:     mqttResponse.ID,
+						ContentType:   "application/json",
+						Body:          responseData,
+					})
+				failOnError(err, "Failed to publish response")
+				log.Println("Received Text:", text)
+			} else {
+				log.Println("Received Pattern:", mqttResponse.Pattern)
+			}
 		}
 	}()
 
