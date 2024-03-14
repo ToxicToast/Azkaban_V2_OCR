@@ -102,7 +102,7 @@ func main() {
 				failOnError(err, "Failed to decode base64 to bytedata")
 				text := processImage(byteData)
 				//
-				topicName := q.Name + "_ack"
+				topicName := "azkaban.upload.ocr.created"
 				responseData := transformResponse(mqttResponse.ID, text)
 				err = ch.Publish(
 					"",        // Exchange
